@@ -1,20 +1,20 @@
 import os
 from openai import OpenAI
-from dotenv import load_dotenv
+# We don't need 'load_dotenv' anymore
 
 def main():
-    # Load the API key from the .env file
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../../.env'))
-    
-    # Check if the key was loaded
+    # The key is now loaded from Windows, not a .env file
+    # The OpenAI client will find it automatically if you set it correctly.
     api_key = os.environ.get("OPENAI_API_KEY")
+    
     if not api_key:
-        print("Error: OPENAI_API_KEY not found.")
-        print("Please check your .env file in the 'tasks4' directory.")
+        print("Error: OPENAI_API_KEY not found in your environment.")
+        print("Please make sure you set it in the Control Panel and RESTARTED your terminal.")
         return
 
-    # Initialize the OpenAI client (it automatically uses the env variable)
     try:
+        # When you initialize OpenAI without an api_key argument,
+        # it automatically looks for the 'OPENAI_API_KEY' environment variable.
         client = OpenAI()
     except Exception as e:
         print(f"Error initializing OpenAI client: {e}")
@@ -36,7 +36,7 @@ def main():
         try:
             # 3. Use the Chat Completions API
             chat_completion = client.chat.completions.create(
-                model="gpt-5-mini",  # The model from your instructions
+                model="gpt-5-mini",
                 messages=[
                     {
                         "role": "system",
@@ -56,7 +56,6 @@ def main():
 
         except Exception as e:
             print(f"An error occurred while contacting OpenAI: {e}")
-            # This is where you might see a 401 again if the key is valid but billing is not set up.
 
 if __name__ == "__main__":
     main()
