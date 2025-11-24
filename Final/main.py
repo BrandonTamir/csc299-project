@@ -166,7 +166,7 @@ def ask_ai(user_query):
 
     context_str = f"User's Pending Tasks: {tasks}\nUser's Notes: {notes}"
     
-    print(f"{Colors.Warning}🤖 AI is thinking...{Colors.ENDC}")
+    print(f"{Colors.WARNING}🤖 AI is thinking...{Colors.ENDC}")
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
