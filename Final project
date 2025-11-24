@@ -1,0 +1,159 @@
+import sqlite3
+import os
+import sys
+from openai import OpenAI
+
+# ==========================================
+# CONFIGURATION
+# ==========================================
+# Make sure you set your API key in your terminal before running:
+# export OPENAI_API_KEY="sk-..."
+# Or you can hardcode it below (not recommended for public repos, but works for running):
+# client = OpenAI(api_key="YOUR_KEY_HERE")
+try:
+    client = OpenAI()
+except:
+    print("Warning: OpenAI API Key not found. AI features will fail nicely.")
+    client = None
+
+DB_NAME = "pkms_data.db"
+
+# ==========================================
+# DATABASE SETUP (SQLite)
+# ==========================================
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    # Create Tasks Table
+    c.execute('''CREATE TABLE IF NOT EXISTS tasks
+                 (id INTEGER PRIMARY KEY, description TEXT, status TEXT)''')
+    # Create Notes Table (This is the PKMS part)
+    c.execute('''CREATE TABLE IF NOT EXISTS notes
+                 (id INTEGER PRIMARY KEY, title TEXT, content TEXT)''')
+    conn.commit()
+    conn.close()
+
+# ==========================================
+# CORE FUNCTIONS
+# ==========================================
+def add_task(description):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO tasks (description, status) VALUES (?, ?)", (description, 'pending'))
+    conn.commit()
+    conn.close()
+    print(f"✅ Task added: {description}")
+
+def list_tasks():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT id, description, status FROM tasks")
+    rows = c.fetchall()
+    conn.close()
+    print("\n--- YOUR TASKS ---")
+    if not rows:
+        print("(No tasks found)")
+    for r in rows:
+        print(f"[{r[0]}] {r[1]} ({r[2]})")
+    print("------------------\n")
+
+def add_note(title, content):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO notes (title, content) VALUES (?, ?)", (title, content))
+    conn.commit()
+    conn.close()
+    print(f"✅ Note saved: {title}")
+
+def list_notes():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT id, title FROM notes")
+    rows = c.fetchall()
+    conn.close()
+    print("\n--- YOUR KNOWLEDGE BASE (PKMS) ---")
+    if not rows:
+        print("(No notes found)")
+    for r in rows:
+        print(f"[{r[0]}] {r[1]}")
+    print("----------------------------------\n")
+
+# ==========================================
+# AI AGENT
+# ==========================================
+def ask_ai(user_query):
+    if not client:
+        print("❌ OpenAI client not initialized. Check your API Key.")
+        return
+
+    # 1. Gather context from DB to send to AI
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT description FROM tasks WHERE status='pending'")
+    tasks = [r[0] for r in c.fetchall()]
+    c.execute("SELECT title, content FROM notes")
+    notes = [f"{r[0]}: {r[1]}" for r in c.fetchall()]
+    conn.close()
+
+    context_str = f"User's Current Tasks: {tasks}\nUser's Notes: {notes}"
+    
+    print("🤖 AI is thinking...")
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", # or gpt-3.5-turbo
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant managing the user's tasks and notes."},
+                {"role": "system", "content": f"Here is the current database state:\n{context_str}"},
+                {"role": "user", "content": user_query}
+            ]
+        )
+        print(f"\nAI Response:\n{response.choices[0].message.content}\n")
+    except Exception as e:
+        print(f"AI Error: {e}")
+
+# ==========================================
+# MAIN LOOP (The Terminal Interface)
+# ==========================================
+def main():
+    init_db()
+    print("Welcome to your Final Project PKMS & Task Manager!")
+    print("Commands: 'task <desc>', 'list', 'note <title>|<content>', 'notes', 'ask <query>', 'quit'")
+    
+    while True:
+        try:
+            command = input("COMMAND > ").strip()
+            
+            if command.lower() in ["quit", "exit"]:
+                break
+            
+            elif command.startswith("task "):
+                desc = command[5:]
+                add_task(desc)
+                
+            elif command == "list":
+                list_tasks()
+                
+            elif command.startswith("note "):
+                # Expected format: note My Title | This is the content
+                parts = command[5:].split("|")
+                if len(parts) < 2:
+                    print("❌ Use format: note Title | Content")
+                else:
+                    add_note(parts[0].strip(), parts[1].strip())
+                    
+            elif command == "notes":
+                list_notes()
+                
+            elif command.startswith("ask "):
+                query = command[4:]
+                ask_ai(query)
+                
+            else:
+                print("Unknown command. Try: task, list, note, notes, ask, quit")
+                
+        except KeyboardInterrupt:
+            break
+    print("Goodbye!")
+
+if __name__ == "__main__":
+    main()
